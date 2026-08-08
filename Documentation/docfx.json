@@ -1,0 +1,22 @@
+﻿{
+  "metadata": [
+    {
+      "src": [
+        {
+          "src": ".",
+          "files": [
+            "DocFxProject.csproj"
+          ]
+        }
+      ],
+      "dest": "../docs-generated/api",
+      "outputFormat": "markdown",
+      "globalNamespaceId": "Global",
+      "disableGitFeatures": true,
+      "includePrivateMembers": false,
+      "categoryLayout": "nested",
+      "namespaceLayout": "nested",
+      "memberLayout": "samePage"
+    }
+  ]
+}

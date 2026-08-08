@@ -1,0 +1,98 @@
+﻿name: API Documentation
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Read Unity version
+        id: unity-version
+        shell: bash
+        run: |
+          VERSION=$(sed -n 's/^m_EditorVersion:[[:space:]]*//p' ProjectSettings/ProjectVersion.txt | head -1)
+          if [ -z "$VERSION" ]; then
+            echo "Could not read Unity version" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Unity version: $VERSION"
+
+      - name: Cache Unity managed DLLs
+        id: cache-unity-dlls
+        uses: actions/cache@v4
+        with:
+          path: lib/UnityEngine
+          key: unity-managed-dlls-${{ steps.unity-version.outputs.version }}-v1
+
+      - name: Find matching GameCI image
+        if: steps.cache-unity-dlls.outputs.cache-hit != 'true'
+        id: unity-image
+        shell: bash
+        run: |
+          VERSION="${{ steps.unity-version.outputs.version }}"
+          TAG=$(curl -fsSL "https://hub.docker.com/v2/repositories/unityci/editor/tags?page_size=100&name=ubuntu-$VERSION" \
+            | jq -r '.results[].name' \
+            | grep -i 'base' \
+            | sort \
+            | tail -1)
+
+          if [ -z "$TAG" ]; then
+            echo "No GameCI editor tag found for Unity $VERSION" >&2
+            echo "Check https://hub.docker.com/r/unityci/editor/tags" >&2
+            exit 1
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Using unityci/editor:$TAG"
+
+      - name: Extract Unity managed DLLs
+        if: steps.cache-unity-dlls.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          mkdir -p lib
+          docker create --name unity-editor "unityci/editor:${{ steps.unity-image.outputs.tag }}"
+          docker cp unity-editor:/opt/unity/Editor/Data/Managed/UnityEngine lib/
+          docker rm unity-editor
+
+      - name: Restore local tools
+        run: dotnet tool restore
+
+      - name: Generate API Markdown
+        run: dotnet docfx metadata Documentation/docfx.json
+
+      - name: Upload generated API Markdown
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-markdown
+          path: docs-generated/api
+
+      - name: Publish generated Markdown to api-docs branch
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          git config user.name "docs-bot"
+          git config user.email "docs-bot@users.noreply.github.com"
+          git checkout --orphan api-docs
+          git rm -rf . > /dev/null
+          cp -r docs-generated/api/. .
+          git add -A
+          git commit -m "docs: regenerate API @ ${{ github.sha }}"
+          git push --force origin api-docs
