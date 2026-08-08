@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 namespace DocumentationGeneration.Example
 {
@@ -39,3 +39,4 @@ namespace DocumentationGeneration.Example
         }
     }
 }
+
