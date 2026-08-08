@@ -1,4 +1,4 @@
-﻿name: API Documentation
+name: API Documentation
 
 on:
   pull_request:
@@ -28,10 +28,12 @@ jobs:
         shell: bash
         run: |
           VERSION=$(sed -n 's/^m_EditorVersion:[[:space:]]*//p' ProjectSettings/ProjectVersion.txt | head -1)
+
           if [ -z "$VERSION" ]; then
             echo "Could not read Unity version" >&2
             exit 1
           fi
+
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Unity version: $VERSION"
 
@@ -48,6 +50,7 @@ jobs:
         shell: bash
         run: |
           VERSION="${{ steps.unity-version.outputs.version }}"
+
           TAG=$(curl -fsSL "https://hub.docker.com/v2/repositories/unityci/editor/tags?page_size=100&name=ubuntu-$VERSION" \
             | jq -r '.results[].name' \
             | grep -i 'base' \
@@ -56,7 +59,6 @@ jobs:
 
           if [ -z "$TAG" ]; then
             echo "No GameCI editor tag found for Unity $VERSION" >&2
-            echo "Check https://hub.docker.com/r/unityci/editor/tags" >&2
             exit 1
           fi
 
@@ -68,8 +70,15 @@ jobs:
         shell: bash
         run: |
           mkdir -p lib
-          docker create --name unity-editor "unityci/editor:${{ steps.unity-image.outputs.tag }}"
-          docker cp unity-editor:/opt/unity/Editor/Data/Managed/UnityEngine lib/
+
+          docker create \
+            --name unity-editor \
+            "unityci/editor:${{ steps.unity-image.outputs.tag }}"
+
+          docker cp \
+            unity-editor:/opt/unity/Editor/Data/Managed/UnityEngine \
+            lib/
+
           docker rm unity-editor
 
       - name: Restore local tools
@@ -87,12 +96,26 @@ jobs:
       - name: Publish generated Markdown to api-docs branch
         if: github.event_name == 'push'
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          PUBLISH_DIR="$RUNNER_TEMP/api-docs-publish"
+
+          mkdir -p "$PUBLISH_DIR"
+          cp -r docs-generated/api/. "$PUBLISH_DIR/"
+
+          cd "$PUBLISH_DIR"
+
+          git init
+          git checkout -b api-docs
+
           git config user.name "docs-bot"
           git config user.email "docs-bot@users.noreply.github.com"
-          git checkout --orphan api-docs
-          git rm -rf . > /dev/null
-          cp -r docs-generated/api/. .
-          git add -A
+
+          git add --all
           git commit -m "docs: regenerate API @ ${{ github.sha }}"
-          git push --force origin api-docs
+
+          git remote add origin \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          git push --force origin HEAD:api-docs
