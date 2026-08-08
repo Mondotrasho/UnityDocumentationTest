@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 namespace DocumentationGeneration.Example
 {
@@ -14,7 +14,7 @@ namespace DocumentationGeneration.Example
         public GameObject Target { get; private set; }
 
 	/// <summary>
-	/// Assigns the GameObject that this component should track.
+	/// Assigns the target GameObject used by this documentation test.
 	/// </summary>
         /// <param name="target">The Unity object that should become the current target.</param>
         public void SetTarget(GameObject target)
@@ -39,3 +39,4 @@ namespace DocumentationGeneration.Example
         }
     }
 }
+
