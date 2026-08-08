@@ -16,3 +16,4 @@ lib/UnityEngine/
 Documentation/bin/
 Documentation/obj/
 !Documentation/DocFxProject.csproj
+docs-generated.zip
