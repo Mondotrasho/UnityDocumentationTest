@@ -1,30 +1,26 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
-
   <ItemGroup>
     <!-- MVP scope only. Expand this after the first end-to-end proof works. -->
-    <Compile Include="../Assets/DocumentationMvp/**/*.cs" />
+    <Compile Include="../Assets/**/*.cs" Exclude="../Assets/Tutorials/**/*.cs" />
+    <ProjectReference Include="Stubs/CinemachineStub/CinemachineStub.csproj" />
   </ItemGroup>
-
   <Target Name="AddUnityReferences" BeforeTargets="ResolveAssemblyReferences">
     <PropertyGroup>
       <UnityManagedPath Condition="'$(UNITY_MANAGED_PATH)' != ''">$(UNITY_MANAGED_PATH)</UnityManagedPath>
       <UnityManagedPath Condition="'$(UnityManagedPath)' == '' and Exists('$(MSBuildProjectDirectory)/../lib/UnityEngine')">$(MSBuildProjectDirectory)/../lib/UnityEngine</UnityManagedPath>
       <UnityManagedPath Condition="'$(UnityManagedPath)' == '' and $([MSBuild]::IsOSPlatform('Windows')) and Exists('C:\Program Files\Unity\Hub\Editor\2022.3.22f1\Editor\Data\Managed\UnityEngine')">C:\Program Files\Unity\Hub\Editor\2022.3.22f1\Editor\Data\Managed\UnityEngine</UnityManagedPath>
     </PropertyGroup>
-
     <ItemGroup Condition="'$(UnityManagedPath)' != ''">
       <_UnityDll Include="$(UnityManagedPath)/*.dll" />
     </ItemGroup>
-
-    <Warning Condition="'@(_UnityDll)' == ''"
-             Text="Unity managed DLLs not found. Set UNITY_MANAGED_PATH or populate lib/UnityEngine." />
-
+    <Warning Condition="'@(_UnityDll)' == ''" Text="Unity managed DLLs not found. Set UNITY_MANAGED_PATH or populate lib/UnityEngine." />
     <ItemGroup>
       <Reference Include="%(_UnityDll.Filename)">
         <HintPath>%(_UnityDll.FullPath)</HintPath>
