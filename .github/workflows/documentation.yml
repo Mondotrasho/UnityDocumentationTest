@@ -115,8 +115,20 @@ jobs:
         run: |
           PUBLISH_DIR="$RUNNER_TEMP/api-docs-publish"
 
-          mkdir -p "$PUBLISH_DIR"
-          cp -r docs-generated/api/. "$PUBLISH_DIR/"
+          mkdir -p "$PUBLISH_DIR/api"
+
+          # Generated Docusaurus-ready API documentation.
+          cp -r docs-generated/api/. "$PUBLISH_DIR/api/"
+
+          # Human-readable explanation of this generated branch.
+          cp Documentation/api-docs-README.md "$PUBLISH_DIR/README.md"
+
+          # Optional documentation pipeline guide.
+          if [ -f "Documentation/guides/documentation-pipeline.pdf" ]; then
+            cp \
+              Documentation/guides/documentation-pipeline.pdf \
+              "$PUBLISH_DIR/documentation-pipeline.pdf"
+          fi
 
           cd "$PUBLISH_DIR"
 
