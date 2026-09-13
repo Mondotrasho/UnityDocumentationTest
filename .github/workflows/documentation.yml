@@ -84,6 +84,25 @@ jobs:
       - name: Restore local tools
         run: dotnet tool restore
 
+      - name: Download Unity API xref map
+        shell: bash
+        run: |
+          UNITY_VERSION="${{ steps.unity-version.outputs.version }}"
+          UNITY_STREAM="$(echo "$UNITY_VERSION" | grep -oE '^[0-9]+\.[0-9]+')"
+
+          if [ -z "$UNITY_STREAM" ]; then
+            echo "Could not determine Unity release stream from: $UNITY_VERSION" >&2
+            exit 1
+          fi
+
+          echo "Unity release stream: $UNITY_STREAM"
+
+          mkdir -p docs-generated
+
+          curl -fL \
+            "https://normanderwan.github.io/UnityXrefMaps/${UNITY_STREAM}/xrefmap.yml" \
+            -o docs-generated/unity-xrefmap.yml
+
       - name: Generate raw DocFX Markdown
         run: dotnet docfx metadata Documentation/docfx.json
 
@@ -93,6 +112,7 @@ jobs:
           ./Documentation/tools/postprocess-docfx.ps1 `
             -InputDir "./docs-generated/docfx-raw" `
             -OutputDir "./docs-generated/api" `
+            -UnityXrefMapPath "./docs-generated/unity-xrefmap.yml" `
             -StripKindPrefix
 
       - name: Upload raw DocFX Markdown
