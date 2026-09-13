@@ -9,7 +9,7 @@
           ]
         }
       ],
-      "dest": "../docs-generated/api",
+      "dest": "../docs-generated/docfx-raw",
       "outputFormat": "markdown",
       "globalNamespaceId": "Global",
       "disableGitFeatures": true,

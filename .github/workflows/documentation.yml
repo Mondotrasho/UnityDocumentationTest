@@ -84,10 +84,24 @@ jobs:
       - name: Restore local tools
         run: dotnet tool restore
 
-      - name: Generate API Markdown
+      - name: Generate raw DocFX Markdown
         run: dotnet docfx metadata Documentation/docfx.json
 
-      - name: Upload generated API Markdown
+      - name: Prepare Docusaurus API Markdown
+        shell: pwsh
+        run: |
+          ./Documentation/tools/postprocess-docfx.ps1 `
+            -InputDir "./docs-generated/docfx-raw" `
+            -OutputDir "./docs-generated/api" `
+            -StripKindPrefix
+
+      - name: Upload raw DocFX Markdown
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-markdown-raw
+          path: docs-generated/docfx-raw
+
+      - name: Upload Docusaurus-ready API Markdown
         uses: actions/upload-artifact@v4
         with:
           name: api-markdown
