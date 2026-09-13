@@ -95,6 +95,125 @@ function Escape-YamlDoubleQuotedString {
 
     return $escaped
 }
+
+function Repair-GlobalNamespaceLinks {
+    param(
+        [Parameter(Mandatory)]
+        [string]$OutputDir
+    )
+
+    $markdownFiles = @(
+        Get-ChildItem `
+            -LiteralPath $OutputDir `
+            -Filter "*.md" `
+            -Recurse `
+            -File
+    )
+
+    # Use a reference-type object so the regex replacement callback can
+    # update these values without PowerShell scope issues.
+    $stats = @{
+        RepairedCount   = 0
+        UnresolvedLinks = [System.Collections.Generic.List[string]]::new()
+    }
+
+    foreach ($file in $markdownFiles) {
+        $content = Get-Content `
+            -LiteralPath $file.FullName `
+            -Raw
+
+        $fileDirectory = Split-Path -Parent $file.FullName
+
+        # Match relative Markdown links such as:
+        #
+        #   [Foo](Foo.md)
+        #   [Foo](Foo.md#some-anchor)
+        #
+        # External URLs and absolute site paths are ignored.
+        $pattern = '\]\((?<path>[^)#?]+\.md)(?<fragment>#[^)]+)?\)'
+
+        $newContent = [regex]::Replace(
+            $content,
+            $pattern,
+            {
+                param($match)
+
+                $linkPath = $match.Groups["path"].Value
+                $fragment = $match.Groups["fragment"].Value
+
+                # DocFX may Markdown-escape punctuation inside link targets.
+                # The filesystem path itself does not contain those escape characters.
+                $filesystemLinkPath = $linkPath.Replace('\-', '-')
+
+                # Ignore URLs and absolute/site-root paths.
+                if (
+                    $linkPath -match '^[a-zA-Z][a-zA-Z0-9+.-]*://' -or
+                    $linkPath.StartsWith('/')
+                ) {
+                    return $match.Value
+                }
+
+                $normalTarget = Join-Path `
+                    $fileDirectory `
+                    $filesystemLinkPath
+
+                # The original link already resolves correctly.
+                if (Test-Path -LiteralPath $normalTarget -PathType Leaf) {
+                    return $match.Value
+                }
+
+                $linkDirectory = Split-Path -Parent $filesystemLinkPath
+                $linkFileName = Split-Path -Leaf $filesystemLinkPath
+
+                if ([string]::IsNullOrWhiteSpace($linkDirectory)) {
+                    $globalLinkPath = "Global.$linkFileName"
+                }
+                else {
+                    $globalLinkPath = Join-Path `
+                        $linkDirectory `
+                        "Global.$linkFileName"
+                }
+
+                $globalTarget = Join-Path `
+                    $fileDirectory `
+                    $globalLinkPath
+
+                # DocFX sometimes emits a global-namespace link without the
+                # Global. filename prefix even though that is the actual file.
+                if (Test-Path -LiteralPath $globalTarget -PathType Leaf) {
+                    $stats.RepairedCount++
+
+                    Write-Host "Repaired global link: $linkPath -> $globalLinkPath"
+
+                    # Markdown paths should always use forward slashes.
+                    $globalLinkPath = $globalLinkPath.Replace('\', '/')
+
+                    return "]($globalLinkPath$fragment)"
+                }
+
+                $stats.UnresolvedLinks.Add(
+                    "$($file.Name): $linkPath$fragment"
+                )
+
+                return $match.Value
+            }
+        )
+
+        if ($newContent -ne $content) {
+            Set-Content `
+                -LiteralPath $file.FullName `
+                -Value $newContent `
+                -NoNewline `
+                -Encoding utf8
+        }
+    }
+
+    return @{
+        RepairedCount   = $stats.RepairedCount
+        UnresolvedLinks = @($stats.UnresolvedLinks)
+    }
+}
+
 # ----------------------------------------------------------------------
 # Validate input
 # ----------------------------------------------------------------------
@@ -309,6 +428,25 @@ foreach ($supportFile in $supportFiles) {
 }
 
 # ----------------------------------------------------------------------
+# Repair DocFX global-namespace links
+# ----------------------------------------------------------------------
+
+$linkRepairResult = Repair-GlobalNamespaceLinks `
+    -OutputDir $OutputDir
+
+$repairedLinkCount = $linkRepairResult.RepairedCount
+$unresolvedLinks = @($linkRepairResult.UnresolvedLinks)
+
+if ($unresolvedLinks.Count -gt 0) {
+    Write-Host ""
+    Write-Host "Unresolved local Markdown links:" -ForegroundColor Yellow
+
+    foreach ($unresolvedLink in $unresolvedLinks) {
+        Write-Host "  - $unresolvedLink" -ForegroundColor Yellow
+    }
+}
+
+# ----------------------------------------------------------------------
 # Final validation
 # ----------------------------------------------------------------------
 
@@ -341,6 +479,8 @@ if ($outputMarkdownFiles.Count -ne $mdFiles.Count) {
 
 Write-Host ""
 Write-Host "Post-processing complete."
-Write-Host "Processed Markdown files: $processedCount"
+Write-Host "Processed Markdown files : $processedCount"
 Write-Host "Copied support files     : $($supportFiles.Count)"
+Write-Host "Global links repaired    : $repairedLinkCount"
+Write-Host "Unresolved local links   : $($unresolvedLinks.Count)"
 Write-Host "Output directory         : $OutputDir"
